@@ -1,5 +1,5 @@
 altair==5.1.2
-apturl==0.5.2
+apturl
 attrs==23.1.0
 bcrypt==3.2.0
 blinker==1.4
