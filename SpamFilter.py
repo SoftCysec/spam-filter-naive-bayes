@@ -1,8 +1,6 @@
-# coding: utf-8
-
-# Importing required libraries
-import string
+import streamlit as st
 import pandas as pd
+import string
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.naive_bayes import MultinomialNB
@@ -11,47 +9,60 @@ import nltk
 from nltk.corpus import stopwords
 
 # Download necessary NLTK data
-if not nltk.data.find('corpora/stopwords'):
+@st.cache_data
+def download_nltk_data():
     nltk.download('stopwords')
+    
+    stopwords.words('english')
 
-# Function to process text
+download_nltk_data()
+
+# Text processing function
 def text_process(mess):
-    """
-    Process the input text by removing punctuation and stopwords.
-    :param mess: input message string
-    :return: list of words after processing
-    """
-    # Remove punctuation
     nopunc = [char for char in mess if char not in string.punctuation]
-    # Join characters to form the string again
     nopunc = ''.join(nopunc)
-    # Remove stopwords and return the list of words
     return [word for word in nopunc.split() if word.lower() not in stopwords.words("english")]
 
-# Load and prepare the dataset
-try:
-    messages = pd.read_csv('SMSSpamCollection2.csv', sep='\t', names=['Label', 'Message'])
-except FileNotFoundError:
-    print("Dataset file not found.")
-    exit()
+# Load dataset
+@st.cache_data
+def load_data():
+    try:
+        messages = pd.read_csv('SMSSpamCollection2.csv', sep='\t', names=['Label', 'Message'])
+        messages['length'] = messages['Message'].apply(len)
+        return messages
+    except FileNotFoundError:
+        return None
 
-# Add a new column for message length
-messages['length'] = messages['Message'].apply(len)
+# Streamlit app
+def main():
+    st.title("SMS Spam Detection App")
 
-# Splitting the dataset into training and test sets
-msg_train, msg_test, lab_train, lab_test = train_test_split(messages['Message'], messages['Label'], test_size=0.3)
+    # Load data
+    messages = load_data()
+    if messages is None:
+        st.error("Error: Dataset file not found.")
+        return
 
-# Creating a pipeline for preprocessing, transforming, and classifier
-pipeline = Pipeline([
-    ('bow', CountVectorizer(analyzer=text_process)),  # Convert messages to Bow format
-    ('tfidf', TfidfTransformer()),  # Apply TF-IDF
-    ('classifier', MultinomialNB())  # Classifier
-])
+    # Split dataset
+    msg_train, msg_test, lab_train, lab_test = train_test_split(messages['Message'], messages['Label'], test_size=0.3)
 
-# Fitting the pipeline to training data
-pipeline.fit(msg_train, lab_train)
+    # Create and fit pipeline
+    pipeline = Pipeline([
+        ('bow', CountVectorizer(analyzer=text_process)),  
+        ('tfidf', TfidfTransformer()),  
+        ('classifier', MultinomialNB())  
+    ])
+    pipeline.fit(msg_train, lab_train)
 
-# User interaction for classification
-x = input("Enter your message to find out whether it is spam or not: ")
-prediction = pipeline.predict([x])
-print(f"The message is classified as: {prediction[0]}")
+    # User input
+    user_input = st.text_input("Enter a message to check if it's spam or not:")
+
+    if st.button("Predict"):
+        if user_input:
+            result = pipeline.predict([user_input])[0]
+            st.write(f"The message is classified as: **{result}**")
+        else:
+            st.write("Please enter a message to classify.")
+
+if __name__ == "__main__":
+    main()
